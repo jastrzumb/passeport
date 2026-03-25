@@ -1,0 +1,18 @@
+{
+  "description": "Test vectors for passeport key derivation. Same mnemonic + passphrase must always produce identical keys.",
+  "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art",
+  "passphrase": "",
+  "user_id": "passeport <passeport@localhost>",
+  "comment": "passeport",
+  "expected": {
+    "ssh_fingerprint": "SHA256:elH/Byw+MdRVD/5eV8efKKQgmlJoeFyBfk0Xr56NkKE",
+    "ssh_public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINpCPsz/A1fa9sZCNMM+kTtzvNfX9io9/LB7SulPV9pk passeport",
+    "age_recipient": "age1v5uum5h8mvty4gty2echuljq948793k6qq0pll4qpnk42dw2ny8qa93vu6",
+    "age_identity": "AGE-SECRET-KEY-18P3Z0SWXZV7T7DKFSJVWPCA7J0CLVML725ZZY64ETT906ME9DNZSJNJ5MM",
+    "pgp_fingerprint": "7d5cbf3de63ce26492be7cc8626dcaf7cb52378e",
+    "nostr_npub": "npub1muct5zdkm8zvzfj85upaeyqawx2z4c3h7hzu55adkhpwff4zhsssdghlmt",
+    "nostr_nsec": "nsec1qenulkcxu4gt4nwcqtxyy43mapv6nkrauslvt2v9ccqa09qgwlmqjeuktu",
+    "onion_address": "pievwqu46likktcjz4gaysmisfuoils3sllvk2ruljqc67egscmzjzyd.onion",
+    "ipfs_peer_id": "12D3KooWNvYEcmR2USpZ6pC32GTt4858yYM3762FS4ft2ZxbbPQ6"
+  }
+}

@@ -1,0 +1,60 @@
+[package]
+name = "passeport"
+version = "0.1.0"
+edition = "2024"
+description = "Derive PGP, SSH, AGE, Nostr, Tor, and IPFS keys from a single BIP-39 mnemonic"
+license = "MIT"
+repository = "https://github.com/jastrzumb/passeport"
+homepage = "https://github.com/jastrzumb/passeport"
+readme = "README.md"
+keywords = ["bip39", "pgp", "ssh", "cryptography", "key-derivation"]
+categories = ["command-line-utilities", "cryptography"]
+
+[[bin]]
+name = "ppt"
+path = "src/main.rs"
+
+[dependencies]
+age = "0.11"
+arboard = "3"
+# bech32 0.10+ removed ToBase32 trait and Variant enum; age and nostr modules use the 0.9 API
+bech32 = "0.9"
+bs58 = "0.5"
+bip39 = "2"
+chrono = { version = "0.4", default-features = false }
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
+# crossterm 0.29+ moved to async-first event API; our sync event::read() loop requires 0.28
+crossterm = "0.28"
+data-encoding = "2"
+ed25519-dalek = "2"
+hkdf = "0.12"
+k256 = "0.13"
+keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native"] }
+# rpgp pinned: PGP key determinism depends on internal RNG consumption order.
+# Upgrading may change derived PGP keys from the same mnemonic. See DERIVATION.md.
+pgp = "0.14"
+# rand 0.9+ renamed thread_rng() to rng(), changed SeedableRng location and trait bounds.
+# rand_chacha 0.9+ requires rand 0.9 traits. Both must be upgraded together.
+rand = "0.8"
+rand_chacha = "0.3"
+sha2 = "0.10"
+sha3 = "0.10"
+ssh-agent-lib = "0.5"
+ssh-key = { version = "0.6", features = ["ed25519"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+zeroize = { version = "1", features = ["derive"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Memory"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "test-util"] }
