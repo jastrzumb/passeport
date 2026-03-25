@@ -3,6 +3,8 @@ use std::io::{self, Write};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use crossterm::terminal;
 
+use crate::error::Error;
+
 /// Mask a word: show first 2 chars, replace the rest with '*'.
 fn mask_word(word: &str) -> String {
     let chars: Vec<char> = word.chars().collect();
@@ -125,7 +127,7 @@ fn try_commit_word(current: &mut String, words: &mut Vec<String>) -> bool {
 ///
 /// Words are shown in full as you type, then masked once confirmed
 /// (first 2 chars visible, rest replaced with *).
-pub fn prompt_mnemonic() -> Result<String, Box<dyn std::error::Error>> {
+pub fn prompt_mnemonic() -> Result<String, Error> {
     eprintln!("Enter your 24-word mnemonic (press Space or Enter after each word).");
     eprintln!("Ctrl+C to abort. Backspace to undo.\n");
 
@@ -135,7 +137,7 @@ pub fn prompt_mnemonic() -> Result<String, Box<dyn std::error::Error>> {
     terminal::enable_raw_mode()?;
     let mut prev_rows = redraw(&words, &current, 0);
 
-    let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+    let result = (|| -> Result<(), Error> {
         loop {
             let ev = event::read()?;
             match ev {
@@ -148,7 +150,7 @@ pub fn prompt_mnemonic() -> Result<String, Box<dyn std::error::Error>> {
                         KeyCode::Char('c')
                             if key_event.modifiers.contains(KeyModifiers::CONTROL) =>
                         {
-                            return Err("aborted".into());
+                            return Err(Error::Prompt("aborted".into()));
                         }
                         KeyCode::Char(c) if c == ' ' || c == '\t' => {
                             if try_commit_word(&mut current, &mut words) && words.len() == 24 {
@@ -194,7 +196,7 @@ pub fn prompt_mnemonic() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 /// Prompt for a specific word number for vault store confirmation.
-pub fn prompt_confirm_word(word_num: usize) -> Result<String, Box<dyn std::error::Error>> {
+pub fn prompt_confirm_word(word_num: usize) -> Result<String, Error> {
     eprint!("  Confirm word #{word_num}: ");
     io::stderr().flush()?;
 
@@ -204,7 +206,7 @@ pub fn prompt_confirm_word(word_num: usize) -> Result<String, Box<dyn std::error
 }
 
 /// Prompt for a passphrase (visible input).
-pub fn prompt_passphrase(prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn prompt_passphrase(prompt: &str) -> Result<String, Error> {
     eprint!("{prompt}");
     io::stderr().flush()?;
 

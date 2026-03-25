@@ -34,4 +34,34 @@ pub enum Error {
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("{0}")]
+    Command(String),
+
+    #[error("{0}")]
+    Prompt(String),
+
+    #[error("Clipboard error: {0}")]
+    Clipboard(String),
+
+    #[error("Signature verification failed: {0}")]
+    Signature(#[from] ed25519_dalek::SignatureError),
+}
+
+impl From<age::EncryptError> for Error {
+    fn from(e: age::EncryptError) -> Self {
+        Error::Age(e.to_string())
+    }
+}
+
+impl From<age::DecryptError> for Error {
+    fn from(e: age::DecryptError) -> Self {
+        Error::Age(e.to_string())
+    }
+}
+
+impl From<arboard::Error> for Error {
+    fn from(e: arboard::Error) -> Self {
+        Error::Clipboard(e.to_string())
+    }
 }

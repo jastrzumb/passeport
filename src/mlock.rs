@@ -6,6 +6,7 @@
 
 /// Lock a region of memory to prevent it from being swapped to disk.
 /// Returns true if successful, false otherwise. Failure is non-fatal.
+#[allow(unsafe_code)]
 pub fn mlock(ptr: *const u8, len: usize) -> bool {
     if len == 0 {
         return true;
@@ -28,6 +29,7 @@ pub fn mlock(ptr: *const u8, len: usize) -> bool {
 }
 
 /// Unlock a previously locked memory region.
+#[allow(unsafe_code)]
 pub fn munlock(ptr: *const u8, len: usize) -> bool {
     if len == 0 {
         return true;

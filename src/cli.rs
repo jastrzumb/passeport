@@ -165,6 +165,13 @@ pub enum Command {
         /// Shell to generate completions for
         shell: clap_complete::Shell,
     },
+
+    /// Generate a man page
+    #[command(
+        name = "man-page",
+        after_help = "Examples:\n  ppt man-page > ppt.1\n  ppt man-page | man -l -"
+    )]
+    ManPage,
 }
 
 #[derive(Subcommand)]

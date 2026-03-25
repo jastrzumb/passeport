@@ -9,7 +9,7 @@ use crate::mnemonic::mnemonic_to_seed;
 use crate::prompt;
 
 /// Load the mnemonic: vault → stdin pipe → interactive prompt (in that order).
-pub fn load_mnemonic() -> Result<String, Box<dyn std::error::Error>> {
+pub fn load_mnemonic() -> Result<String, Error> {
     // 1. Try the OS credential store
     if let Some(stored) = crate::vault::load()? {
         eprintln!("Using mnemonic from OS credential store.");
@@ -27,11 +27,7 @@ pub fn load_mnemonic() -> Result<String, Box<dyn std::error::Error>> {
     prompt::prompt_mnemonic()
 }
 
-pub fn cmd_generate(
-    keys: &DerivedKeys,
-    key_cmd: &KeyCommand,
-    cli: &Cli,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn cmd_generate(keys: &DerivedKeys, key_cmd: &KeyCommand, cli: &Cli) -> Result<(), Error> {
     let do_pgp = matches!(key_cmd, KeyCommand::All | KeyCommand::Pgp { .. });
     let do_ssh = matches!(key_cmd, KeyCommand::All | KeyCommand::Ssh { .. });
     let do_age = matches!(key_cmd, KeyCommand::All | KeyCommand::Age);
@@ -124,7 +120,7 @@ pub fn cmd_generate(
     Ok(())
 }
 
-pub fn cmd_verify(keys: &DerivedKeys, cli: &Cli) -> Result<(), Box<dyn std::error::Error>> {
+pub fn cmd_verify(keys: &DerivedKeys, cli: &Cli) -> Result<(), Error> {
     eprintln!("Mnemonic is valid.\n");
 
     // SSH
@@ -158,7 +154,7 @@ pub fn cmd_verify(keys: &DerivedKeys, cli: &Cli) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-pub fn cmd_vault(action: &VaultAction) -> Result<(), Box<dyn std::error::Error>> {
+pub fn cmd_vault(action: &VaultAction) -> Result<(), Error> {
     match action {
         VaultAction::Store { encrypt } => {
             let mnemonic = if std::io::IsTerminal::is_terminal(&io::stdin()) {
@@ -181,18 +177,20 @@ pub fn cmd_vault(action: &VaultAction) -> Result<(), Box<dyn std::error::Error>>
 
                 let answer = prompt::prompt_confirm_word(idx + 1)?;
                 if answer != expected {
-                    return Err("confirmation failed — word did not match".into());
+                    return Err(Error::Command(
+                        "confirmation failed — word did not match".into(),
+                    ));
                 }
             }
 
             if *encrypt {
                 let passphrase = prompt::prompt_passphrase("Set vault passphrase: ")?;
                 if passphrase.is_empty() {
-                    return Err("passphrase cannot be empty".into());
+                    return Err(Error::Command("passphrase cannot be empty".into()));
                 }
                 let confirm = prompt::prompt_passphrase("Confirm passphrase: ")?;
                 if passphrase != confirm {
-                    return Err("passphrases do not match".into());
+                    return Err(Error::Command("passphrases do not match".into()));
                 }
                 crate::vault::store_encrypted(&mnemonic, &passphrase)?;
                 eprintln!("Mnemonic encrypted and stored in OS credential store.");
@@ -220,7 +218,7 @@ pub fn cmd_vault(action: &VaultAction) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-pub fn cmd_git_setup(cli: &Cli, local: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn cmd_git_setup(cli: &Cli, local: bool) -> Result<(), Error> {
     let scope = if local { "local" } else { "global" };
     eprintln!("This will configure Git ({scope}) to use SSH signing with your Passeport key.\n");
 
@@ -243,7 +241,7 @@ pub fn cmd_git_setup(cli: &Cli, local: bool) -> Result<(), Box<dyn std::error::E
             .args(["config", scope_flag, key, value])
             .status()?;
         if !status.success() {
-            return Err(format!("failed to set git config {key}").into());
+            return Err(Error::Command(format!("failed to set git config {key}")));
         }
         eprintln!("  git config {scope_flag} {key} {value}");
     }
@@ -336,7 +334,7 @@ pub fn cmd_sign(
     output: &Option<PathBuf>,
     format: &SignatureFormat,
     cli: &Cli,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Error> {
     use ed25519_dalek::Signer;
 
     let data = read_input(file)?;
@@ -388,7 +386,7 @@ pub fn cmd_verify_sig(
     sig_path: &PathBuf,
     format: &SignatureFormat,
     cli: &Cli,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Error> {
     let data = std::fs::read(file)?;
     let sig_data = std::fs::read(sig_path)?;
 
@@ -398,10 +396,10 @@ pub fn cmd_verify_sig(
             let signing_key = ed25519_dalek::SigningKey::from_bytes(&keys.ssh);
             let verifying_key = signing_key.verifying_key();
             let sig_bytes: [u8; 64] = sig_data.as_slice().try_into().map_err(|_| {
-                format!(
+                Error::Command(format!(
                     "invalid signature: expected 64 bytes, got {}",
                     sig_data.len()
-                )
+                ))
             })?;
             let signature = ed25519_dalek::Signature::from_bytes(&sig_bytes);
             verifying_key.verify(&data, &signature)?;
@@ -420,7 +418,7 @@ fn pgp_verify_detached(
     user_id: &str,
     data: &[u8],
     sig_data: &[u8],
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Error> {
     use ::pgp::composed::{Deserializable, SignedPublicKey, StandaloneSignature};
 
     let pgp_keys = pgp::generate(seed, user_id)?;
@@ -435,10 +433,7 @@ fn pgp_verify_detached(
     Ok(())
 }
 
-fn pgp_sign_detached(
-    armored_secret: &str,
-    data: &[u8],
-) -> Result<String, Box<dyn std::error::Error>> {
+fn pgp_sign_detached(armored_secret: &str, data: &[u8]) -> Result<String, Error> {
     use ::pgp::composed::{Deserializable, SignedSecretKey};
     use ::pgp::crypto::hash::HashAlgorithm;
     use ::pgp::packet::SignatureConfig;
@@ -464,7 +459,7 @@ pub fn cmd_encrypt(
     format: &EncryptionFormat,
     extra_recipients: &[String],
     cli: &Cli,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Error> {
     let data = read_input(file)?;
 
     match format {
@@ -535,7 +530,7 @@ pub fn cmd_decrypt(
     output: &Option<PathBuf>,
     format: &EncryptionFormat,
     cli: &Cli,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Error> {
     let data = read_input(file)?;
 
     match format {
@@ -570,11 +565,7 @@ pub fn cmd_decrypt(
     Ok(())
 }
 
-fn pgp_encrypt(
-    seed: &[u8; 32],
-    user_id: &str,
-    data: &[u8],
-) -> Result<String, Box<dyn std::error::Error>> {
+fn pgp_encrypt(seed: &[u8; 32], user_id: &str, data: &[u8]) -> Result<String, Error> {
     use ::pgp::Message;
     use ::pgp::composed::{Deserializable, SignedPublicKey};
     use ::pgp::crypto::sym::SymmetricKeyAlgorithm;
@@ -589,7 +580,7 @@ fn pgp_encrypt(
         .public_subkeys
         .iter()
         .find(|sk| sk.is_encryption_key())
-        .ok_or("no encryption-capable subkey found")?;
+        .ok_or(Error::Command("no encryption-capable subkey found".into()))?;
 
     let message = Message::new_literal_bytes("", data);
     let mut rng = rand::thread_rng();
@@ -599,11 +590,7 @@ fn pgp_encrypt(
     Ok(encrypted.to_armored_string(None.into())?)
 }
 
-fn pgp_decrypt(
-    seed: &[u8; 32],
-    user_id: &str,
-    data: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn pgp_decrypt(seed: &[u8; 32], user_id: &str, data: &[u8]) -> Result<Vec<u8>, Error> {
     use ::pgp::Message;
     use ::pgp::composed::{Deserializable, SignedSecretKey};
 
@@ -619,10 +606,10 @@ fn pgp_decrypt(
 
     decrypted_msg
         .get_content()?
-        .ok_or_else(|| "PGP message contained no data".into())
+        .ok_or_else(|| Error::Command("PGP message contained no data".into()))
 }
 
-fn read_input(file: &Option<PathBuf>) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+fn read_input(file: &Option<PathBuf>) -> Result<Vec<u8>, Error> {
     match file {
         Some(path) => Ok(std::fs::read(path)?),
         None => {
@@ -633,10 +620,7 @@ fn read_input(file: &Option<PathBuf>) -> Result<Vec<u8>, Box<dyn std::error::Err
     }
 }
 
-fn write_output_bytes(
-    data: &[u8],
-    path: &Option<PathBuf>,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn write_output_bytes(data: &[u8], path: &Option<PathBuf>) -> Result<(), Error> {
     match path {
         Some(p) => {
             std::fs::write(p, data)?;
@@ -649,11 +633,11 @@ fn write_output_bytes(
     Ok(())
 }
 
-fn write_output_str(data: &str, path: &Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+fn write_output_str(data: &str, path: &Option<PathBuf>) -> Result<(), Error> {
     write_output_bytes(data.as_bytes(), path)
 }
 
-fn copy_to_clipboard(text: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_to_clipboard(text: &str) -> Result<(), Error> {
     use arboard::Clipboard;
     let mut clipboard = Clipboard::new()?;
     clipboard.set_text(text)?;

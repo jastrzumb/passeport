@@ -264,17 +264,14 @@ pub async fn run(
     comment: String,
     mnemonic_words: Vec<String>,
     config: AgentConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), crate::error::Error> {
     let agent = PasseportAgent::new(seed, comment.clone(), mnemonic_words, config.clone());
 
     // Print public key info to stderr
     let pub_key = ssh_key::PublicKey::new(agent.public_key.clone(), &comment);
     let fingerprint = pub_key.fingerprint(ssh_key::HashAlg::Sha256);
     eprintln!("SSH key loaded: {fingerprint}");
-    eprintln!(
-        "Public key: {}",
-        pub_key.to_openssh().map_err(|e| e.to_string())?
-    );
+    eprintln!("Public key: {}", pub_key.to_openssh()?);
     if let Some(timeout) = config.timeout {
         eprintln!("Lock timeout: {}s", timeout.as_secs());
         if let Some(ref prog) = config.pinentry_program {
@@ -303,7 +300,7 @@ pub async fn run(
 
         tokio::select! {
             result = listen(listener, agent) => {
-                result.map_err(|e| e.to_string())?;
+                result.map_err(|e| crate::error::Error::Agent(e.to_string()))?;
             }
             _ = tokio::signal::ctrl_c() => {
                 eprintln!("\nShutting down...");
@@ -327,7 +324,7 @@ pub async fn run(
 
         tokio::select! {
             result = listen(listener, agent) => {
-                result.map_err(|e| e.to_string())?;
+                result.map_err(|e| crate::error::Error::Agent(e.to_string()))?;
             }
             _ = tokio::signal::ctrl_c() => {
                 eprintln!("\nShutting down...");

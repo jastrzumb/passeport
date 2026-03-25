@@ -1,0 +1,62 @@
+[package]
+name = "passeport-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = "0.4"
+passeport = { path = ".." }
+
+# Prevent this from being part of the parent workspace
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_mnemonic_to_seed"
+path = "fuzz_targets/fuzz_mnemonic_to_seed.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_derive_keys"
+path = "fuzz_targets/fuzz_derive_keys.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_ssh_generate"
+path = "fuzz_targets/fuzz_ssh_generate.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_pgp_generate"
+path = "fuzz_targets/fuzz_pgp_generate.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_pgp_fingerprint"
+path = "fuzz_targets/fuzz_pgp_fingerprint.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_age_generate"
+path = "fuzz_targets/fuzz_age_generate.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_nostr_generate"
+path = "fuzz_targets/fuzz_nostr_generate.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_onion_generate"
+path = "fuzz_targets/fuzz_onion_generate.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_ipfs_generate"
+path = "fuzz_targets/fuzz_ipfs_generate.rs"
+doc = false

@@ -21,13 +21,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Init {
             action: Some(InitAction::Git { local }),
         } => {
-            return cmd_git_setup(&cli, *local);
+            cmd_git_setup(&cli, *local)?;
+            return Ok(());
         }
         Command::Vault { action } => {
-            return cmd_vault(action);
+            cmd_vault(action)?;
+            return Ok(());
         }
         Command::Completions { shell } => {
             clap_complete::generate(*shell, &mut Cli::command(), "ppt", &mut std::io::stdout());
+            return Ok(());
+        }
+        Command::ManPage => {
+            let man = clap_mangen::Man::new(Cli::command());
+            man.render(&mut std::io::stdout())?;
             return Ok(());
         }
         _ => {}
@@ -93,7 +100,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } => {
             cmd_decrypt(&keys, file, output, format, &cli)?;
         }
-        Command::Init { .. } | Command::Vault { .. } | Command::Completions { .. } => {
+        Command::Init { .. }
+        | Command::Vault { .. }
+        | Command::Completions { .. }
+        | Command::ManPage => {
             unreachable!()
         }
     }

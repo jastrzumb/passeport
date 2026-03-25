@@ -24,6 +24,7 @@ bip39 = "2"
 chrono = { version = "0.4", default-features = false }
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
+clap_mangen = "0.2"
 # crossterm 0.29+ moved to async-first event API; our sync event::read() loop requires 0.28
 crossterm = "0.28"
 data-encoding = "2"
