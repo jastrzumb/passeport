@@ -1,6 +1,6 @@
 [package]
 name = "passeport"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Derive PGP, SSH, AGE, Nostr, Tor, and IPFS keys from a single BIP-39 mnemonic"
 license = "MIT"

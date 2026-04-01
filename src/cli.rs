@@ -131,9 +131,9 @@ pub enum Command {
         format: EncryptionFormat,
     },
 
-    /// Run as an SSH agent daemon (foreground)
+    /// Run as an SSH agent daemon
     #[command(
-        after_help = "Examples:\n  ppt agent\n  ppt agent -t 30\n  eval $(ppt agent -t 30)\n  ppt agent --pinentry-program pinentry-mac"
+        after_help = "Examples:\n  ppt agent\n  ppt agent -t 30\n  eval $(ppt agent -t 30)\n  ppt agent --pinentry-program pinentry-mac\n  ppt agent -d   # stay in foreground"
     )]
     Agent {
         /// Lock timeout in minutes (0 = never lock)
@@ -144,6 +144,10 @@ pub enum Command {
         /// Auto-detected from PATH if not specified. Falls back to built-in terminal prompt.
         #[arg(long)]
         pinentry_program: Option<String>,
+
+        /// Run in the foreground (do not fork). Useful for debugging.
+        #[arg(short = 'd', long)]
+        foreground: bool,
     },
 
     /// Validate a mnemonic and print all public key fingerprints

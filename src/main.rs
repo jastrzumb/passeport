@@ -52,6 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Command::Agent {
             timeout,
             pinentry_program,
+            foreground,
         } => {
             let config = passeport::agent::AgentConfig {
                 timeout: if *timeout > 0 {
@@ -61,6 +62,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 pinentry_program: pinentry_program.clone().or_else(find_pinentry),
             };
+
+            #[cfg(unix)]
+            if !foreground {
+                passeport::agent::daemonize(&keys.ssh, &cli.comment)?;
+            }
+
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(passeport::agent::run(
                 &keys.ssh,

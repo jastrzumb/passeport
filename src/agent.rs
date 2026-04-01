@@ -258,6 +258,66 @@ fn terminal_ask(prompt: &str) -> Result<String, String> {
     Ok(answer.trim().to_string())
 }
 
+/// Fork to background like ssh-agent. Must be called before creating a tokio
+/// runtime (forking after threads are spawned is unsafe).
+///
+/// The parent process prints `SSH_AUTH_SOCK` and `SSH_AGENT_PID` to stdout
+/// (suitable for `eval $(ppt agent)`) and exits. The child continues and
+/// should proceed to call [`run`].
+#[cfg(unix)]
+#[allow(unsafe_code)]
+pub fn daemonize(ssh_seed: &[u8; 32], comment: &str) -> Result<(), crate::error::Error> {
+    let socket_path = get_socket_path_unix();
+
+    // Check before forking so the parent can exit quickly.
+    if is_agent_running(&socket_path) {
+        println!("SSH_AUTH_SOCK={socket_path}; export SSH_AUTH_SOCK;");
+        eprintln!("# Agent already running on {socket_path}");
+        std::process::exit(0);
+    }
+
+    // Print key info before forking so the user sees it.
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(ssh_seed);
+    let verifying_key = signing_key.verifying_key();
+    let public_key = KeyData::Ed25519(Ed25519PublicKey(verifying_key.to_bytes()));
+    let pub_key = ssh_key::PublicKey::new(public_key, comment);
+    let fingerprint = pub_key.fingerprint(ssh_key::HashAlg::Sha256);
+    eprintln!("# SSH key loaded: {fingerprint}");
+
+    // SAFETY: called before any threads are spawned (no tokio runtime yet).
+    let pid = unsafe { libc::fork() };
+    match pid {
+        -1 => {
+            return Err(crate::error::Error::Agent("fork() failed".into()));
+        }
+        0 => {
+            // Child: new session, detach from terminal, redirect fds.
+            unsafe { libc::setsid() };
+
+            // Redirect stdin/stdout/stderr to /dev/null.
+            let devnull = std::fs::File::open("/dev/null").ok();
+            if let Some(f) = &devnull {
+                use std::os::unix::io::AsRawFd;
+                let fd = f.as_raw_fd();
+                unsafe {
+                    libc::dup2(fd, 0); // stdin
+                    libc::dup2(fd, 1); // stdout
+                    libc::dup2(fd, 2); // stderr
+                }
+            }
+
+            // Child continues — caller will create the runtime and call run().
+            Ok(())
+        }
+        child_pid => {
+            // Parent: print env vars and exit.
+            println!("SSH_AUTH_SOCK={socket_path}; export SSH_AUTH_SOCK;");
+            println!("SSH_AGENT_PID={child_pid}; export SSH_AGENT_PID;");
+            std::process::exit(0);
+        }
+    }
+}
+
 /// Run the SSH agent, listening for connections until interrupted.
 pub async fn run(
     seed: &[u8; 32],
@@ -270,22 +330,31 @@ pub async fn run(
     // Print public key info to stderr
     let pub_key = ssh_key::PublicKey::new(agent.public_key.clone(), &comment);
     let fingerprint = pub_key.fingerprint(ssh_key::HashAlg::Sha256);
-    eprintln!("SSH key loaded: {fingerprint}");
-    eprintln!("Public key: {}", pub_key.to_openssh()?);
+    eprintln!("# SSH key loaded: {fingerprint}");
+    eprintln!("# Public key: {}", pub_key.to_openssh()?);
     if let Some(timeout) = config.timeout {
-        eprintln!("Lock timeout: {}s", timeout.as_secs());
+        eprintln!("# Lock timeout: {}s", timeout.as_secs());
         if let Some(ref prog) = config.pinentry_program {
-            eprintln!("Pinentry: {prog}");
+            eprintln!("# Pinentry: {prog}");
         } else {
-            eprintln!("Pinentry: (built-in terminal prompt)");
+            eprintln!("# Pinentry: (built-in terminal prompt)");
         }
     } else {
-        eprintln!("Lock timeout: disabled");
+        eprintln!("# Lock timeout: disabled");
     }
 
     #[cfg(unix)]
     {
         let socket_path = get_socket_path_unix();
+
+        // If an agent is already running on this socket, just print the
+        // SSH_AUTH_SOCK line and exit successfully so `eval $(ppt agent)`
+        // works idempotently (important for login services / shell profiles).
+        if is_agent_running(&socket_path) {
+            println!("SSH_AUTH_SOCK={socket_path}; export SSH_AUTH_SOCK;");
+            eprintln!("# Agent already running on {socket_path}");
+            return Ok(());
+        }
 
         // Clean up stale socket
         let _ = std::fs::remove_file(&socket_path);
@@ -294,9 +363,9 @@ pub async fn run(
 
         // Print SSH_AUTH_SOCK for eval
         println!("SSH_AUTH_SOCK={socket_path}; export SSH_AUTH_SOCK;");
-        eprintln!("Agent listening on {socket_path}");
-        eprintln!("Run: eval $(ppt agent)");
-        eprintln!("Press Ctrl+C to stop.");
+        eprintln!("# Agent listening on {socket_path}");
+        eprintln!("# Run: eval $(ppt agent)");
+        eprintln!("# Press Ctrl+C to stop.");
 
         tokio::select! {
             result = listen(listener, agent) => {
@@ -318,9 +387,9 @@ pub async fn run(
         let pipe_name = r"\\.\pipe\passeport-ssh-agent";
         let listener = NamedPipeListener::bind(pipe_name)?;
 
-        println!("SSH_AUTH_SOCK={pipe_name}");
-        eprintln!("Agent listening on {pipe_name}");
-        eprintln!("Press Ctrl+C to stop.");
+        println!("$env:SSH_AUTH_SOCK=\"{pipe_name}\"");
+        eprintln!("# Agent listening on {pipe_name}");
+        eprintln!("# Press Ctrl+C to stop.");
 
         tokio::select! {
             result = listen(listener, agent) => {
@@ -336,11 +405,19 @@ pub async fn run(
 }
 
 #[cfg(unix)]
+#[allow(unsafe_code)]
 fn get_socket_path_unix() -> String {
     if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
         format!("{runtime_dir}/passeport-agent.sock")
     } else {
-        let pid = std::process::id();
-        format!("/tmp/passeport-agent-{pid}.sock")
+        // SAFETY: libc::getuid() is a trivial syscall with no invariants.
+        let uid = unsafe { libc::getuid() };
+        format!("/tmp/passeport-agent-{uid}.sock")
     }
+}
+
+/// Check if an agent is already listening on the given socket path.
+#[cfg(unix)]
+fn is_agent_running(socket_path: &str) -> bool {
+    std::os::unix::net::UnixStream::connect(socket_path).is_ok()
 }
