@@ -288,7 +288,7 @@ pub fn daemonize(ssh_seed: &[u8; 32], comment: &str) -> Result<(), crate::error:
     let pid = unsafe { libc::fork() };
     match pid {
         -1 => {
-            return Err(crate::error::Error::Agent("fork() failed".into()));
+            Err(crate::error::Error::Agent("fork() failed".into()))
         }
         0 => {
             // Child: new session, detach from terminal, redirect fds.
